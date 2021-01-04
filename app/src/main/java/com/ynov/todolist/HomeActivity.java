@@ -1,17 +1,27 @@
 package com.ynov.todolist;
 
-import android.net.Uri;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Menu;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.ynov.todolist.models.Model;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -20,13 +30,20 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import java.text.DateFormat;
+import java.util.Date;
+
 public class HomeActivity extends AppCompatActivity {
 
     private AppBarConfiguration mAppBarConfiguration;
     private TextView emailText;
     private FirebaseAuth mAuth;
     private FirebaseUser mUser;
-    private String UserOnline;
+    private String UserOnlineId;
+    private DatabaseReference reference;
+    private String key = "";
+    private String task;
+    private String description;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,12 +51,19 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        //Database connect and reference to model
+        mAuth = FirebaseAuth.getInstance();
+        mUser = mAuth.getCurrentUser();
+        UserOnlineId = mUser.getUid();
+        reference = FirebaseDatabase.getInstance().getReference().child("Task").child(UserOnlineId);
+
+
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+                addTask();
             }
         });
         DrawerLayout drawer = findViewById(R.id.drawer_layout);
@@ -65,9 +89,9 @@ public class HomeActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
         mUser = mAuth.getCurrentUser();
-        UserOnline = mUser.getEmail();
+        UserOnlineId = mUser.getEmail();
         mUser.sendEmailVerification();
-        emailText.setText(UserOnline);
+        emailText.setText(UserOnlineId);
         return true;
     }
 
@@ -76,5 +100,50 @@ public class HomeActivity extends AppCompatActivity {
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
         return NavigationUI.navigateUp(navController, mAppBarConfiguration)
                 || super.onSupportNavigateUp();
+    }
+
+    private void addTask() {
+        AlertDialog.Builder createTaskAlert = new AlertDialog.Builder(this);
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View mView =  inflater.inflate(R.layout.input_task, null);
+
+        createTaskAlert.setView(mView);
+
+        AlertDialog dialog = createTaskAlert.create();
+        dialog.setCancelable(true);
+
+        final EditText task = mView.findViewById(R.id.title_task);
+        final EditText description = mView.findViewById(R.id.description_task);
+        Button saveTask = mView.findViewById(R.id.add_task_button);
+        Button cancel = mView.findViewById(R.id.cancel_task_button);
+
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        saveTask.setOnClickListener(v -> {
+            String mTask = task.getText().toString().trim();
+            String mDesc = description.getText().toString().trim();
+            String id = reference.push().getKey();
+            String date = DateFormat.getDateInstance().format(new Date());
+
+            if(TextUtils.isEmpty(mTask)) {
+                task.setError("Required Title of task");
+                return;
+            }
+            if (TextUtils.isEmpty(mDesc)) {
+                description.setError("Required description of task");
+                return;
+            }else {
+                Model model = new Model(mTask, mDesc, id, date);
+                reference.child(id).setValue(model).addOnCompleteListener(new OnCompleteListener<Void>() {
+                    @Override
+                    public void onComplete(@NonNull Task<Void> task) {
+                        if(task.isSuccessful()) {
+                            Toast.makeText(HomeActivity.this, "Task added successfuly !!", Toast.LENGTH_SHORT).show();
+                        } e
+                    }
+                });
+            }
+        });
+
+        dialog.show();
     }
 }
